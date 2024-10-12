@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>DiceGame</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.0/css/bulma.min.css">
+<script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+<script src="https://unpkg.com/mithril/mithril.js"></script>
+
+<!-- Google Sign-In script -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jwt-decode/build/jwt-decode.min.js"></script>
+
+</head>
+<body>
+
+<script>	
+
+var DiceGame={
+  turn : 0,
+  d1 : 1,
+  d2 : 1,
+  name : '',  // le nom de l'utilisateur sera rempli après la connexion Google
+  score : 0,
+  token : '', // stockera le jeton Google après connexion
+
+  play: function() {
+    if (this.token === '') {
+        alert("Veuillez vous connecter pour jouer.");
+        return;
+    }
+ 	if (this.turn < 10) {
+   	  this.d1 = Math.floor((Math.random() * 5) + 1);
+	  this.d2 = Math.floor((Math.random() * 5) + 1);
+	  if (this.d1 + this.d2 == 7) {
+	    this.score += 10;
+	  }
+	  this.turn++;
+	} else {
+		Score.save(this.score, this.name, this.token);  // Passez le jeton Google lors de l'enregistrement
+		this.turn=0;
+		this.score=0;
+	}
+   }
+ } // DiceGame
+
+// Fonction de gestion de la réponse après la connexion Google
+function handleCredentialResponse(response) {
+    console.log("Google Sign-In callback appelé avec succès.");
+    const responsePayload = jwt_decode(response.credential);
+   
+    // Définir le nom de l'utilisateur et le jeton dans l'objet DiceGame
+    DiceGame.name = responsePayload.name;
+    DiceGame.token = response.credential;
+
+    // Mettre à jour l'affichage avec le nom de l'utilisateur connecté
+    document.getElementById("user-name").textContent = "Connecté en tant que : " + responsePayload.name;
+}
+
+// Initialiser l'authentification Google
+window.onload = function () {
+    google.accounts.id.initialize({
+        client_id: "927375242383-jm45ei76rdsfv7tmjv58tcsjjpvgkdje.apps.googleusercontent.com", // Remplacez par votre propre Client ID
+        callback: handleCredentialResponse
+    });
+    google.accounts.id.renderButton(
+        document.getElementById("g_id_signin"),
+        { theme: "outline", size: "large" }  // Paramètres du bouton
+    );
+};
+
+var DiceView={
+	view: function() {
+		return m('div', [
+			m('div',{class:'subtitle'},"Just play here"),
+			// Suppression du champ texte pour le nom, remplacé par Google Sign-In
+			m('div', {id: 'g_id_signin'}),
+			m('p', {id: 'user-name', class: 'is-size-4'}, 'Veuillez vous connecter pour jouer.'), // Zone pour afficher le nom après connexion
+
+			m('div',{class:'level'},[
+			 m('label',{class:'level-item'},"turn:"+DiceGame.turn),
+			 m('label',{class:'level-item'},"score:"+DiceGame.score),
+			]),
+			m('label',{class:'label'},"Dice 1:"+DiceGame.d1),
+			m('label',{class:'label'},"Dice 2:"+DiceGame.d2),
+			m('button',{
+				class: 'button is-link',
+				onclick: function(e) {DiceGame.play()}
+			    },"play"),
+		])
+	}	
+}
+
+var Score = {
+	    list: [],
+	    loadList: function() {
+	        return m.request({
+	            method: "GET",
+	            url: "_ah/api/myApi/v1/topscores/"
+	        })
+	        .then(function(result) {
+	            Score.list = result.items
+	        	console.log("got:",result.items)
+	        })
+	    },
+	    save: function(score,name, token) {
+	    	console.log("saving...",Score.current)
+	        return m.request({
+	            method: "GET",
+	            url: "_ah/api/myApi/v1/addScoreSec",
+	            params: { score: score, name: name, token: token }  // Envoyer le jeton Google ici
+	        })
+	        .then(function(result) {
+	        	console.log("got:",result)
+	        	Score.loadList()
+	        })
+	    }
+	}
+
+var ScoreView = {
+  oninit: Score.loadList,
+  view: function() {
+   	return m('div', [
+	  m('div',{class:'subtitle'},"Top 10 Scores"),
+	  m('table', {class:'table is-striped'},[
+	    m('tr', [
+	      m('th', {width:"20px"}, "Name"),
+	      m('th', {width:"50px"}, "Score"),
+	    ]),
+	    Score.list.map(function(item) {
+	      return m("tr", [
+  	        m('td', m('label', item.properties.name)),
+	        m('td', m('label', item.properties.score)),
+	      ])
+	    })
+	   ])
+	 ])
+  }
+}
+
+var Hello = {
+   view: function() {
+   	return m('div', {class:'container'}, [
+           m("h1", {class: 'title'}, 'The Dice Game'),
+           m('div',{class: 'tile is-ancestor'},[
+               m("div", {class: 'tile'}, m('div',{class:'tile is-child box'},m(DiceView))),
+               m("div", {class: 'tile'}, m('div',{class:'tile is-child box'},m(ScoreView))),
+           ])
+       ])
+   }
+}
+
+
+m.mount(document.body, Hello)	
+
+</script>
+</body>
+</html>
+
